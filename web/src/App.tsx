@@ -1,9 +1,10 @@
 import React from 'react';
 import './App.css';
+import Routes from './routes'
 
-function App() {
+const App: React.FC = () => {
   return (
-    <h1>EAE CAMBADA</h1>
+    <Routes />
   );
 }
 
