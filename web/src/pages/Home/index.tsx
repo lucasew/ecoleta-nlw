@@ -3,7 +3,7 @@ import logo from '../../assets/logo.svg'
 import './styles.css'
 import {FiLogIn} from 'react-icons/fi'
 import {Link} from 'react-router-dom'
-
+import 'react-toastify/dist/ReactToastify.css';
 
 const Home = () => {
     return (

@@ -6,6 +6,7 @@ import axios from 'axios'
 import {LeafletMouseEvent} from 'leaflet'
 
 import api, {baseURL} from '../../services/api'
+import toast from '../../utils/toaster'
 
 import './styles.css'
 import logo from '../../assets/logo.svg'
@@ -79,12 +80,12 @@ const CreatePoint = () => {
         const [latitude, longitude] = latLong
         const uf = selectedUF
         if (uf === '0') {
-            alert("UF não pode ser o valor padrão")
+            toast.error("UF não pode ser o valor padrão")
             return
         }
         const city = selectedCity
         if (city === '0') {
-            alert("Cidade não pode ser o valor padrão")
+            toast.error("Cidade não pode ser o valor padrão")
             return
         }
         const itemIds = items
@@ -98,23 +99,25 @@ const CreatePoint = () => {
         }
         try {
             const response = await api.post('/api/points', data)
-            alert(response.status === 200 
-                ? "Ponto criado" 
-                : "Houve um erro na criação do ponto"
-            )
+            if (response.status === 200) {
+                toast.success("Ponto criado")
+            } else {
+                toast.error(`Houve um erro na criação do ponto: ${response.data.error}`)
+            }
+            toast.info("Redirecionando para a página inicial...")
             history.push('/')
         } catch (err) {
-            alert(`Error: ${err}`)
+            toast.error(`Erro ao submeter dados: ${err}`)
         }
     }
 
     useEffect(() => {
         let timeoutExpired = false
         setTimeout(() => {
-            console.log("GPS timeout expired")
+            toast.warning("Tempo limite de busca de dados de localização excedido. A busca automática de localização foi desabilitada.")
             timeoutExpired = true
         }, 5000)
-        console.log("looking for location....")
+        toast.info("Buscando localização do usuário para o mapa...")
         navigator.geolocation.getCurrentPosition(position => {
             if (timeoutExpired) {
                 return // to avoid warping bugs if the gps detection is so slow
@@ -128,7 +131,7 @@ const CreatePoint = () => {
         api.get('/api/items').then(response => {
             const {error, data} = response.data
             if (error) {
-                console.error(error)
+                toast.error(`Erro ao buscar o catálogo de grupos de itens recolhíveis: ${error}`)
                 return
             }
             const rawItems = data as Item[]
