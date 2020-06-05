@@ -50,6 +50,8 @@ const CreatePoint = () => {
     const [selectedCity, setSelectedCity] = useState<string>('0')
     const handleSelectCity = useOptionHandler(setSelectedCity, '0')
 
+    const [latLong, setLatLong] = useState<[number, number]>([0, 0])
+
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -68,7 +70,6 @@ const CreatePoint = () => {
         )
         setItems(newState)
     } 
-    const [latLong, setLatLong] = useState<[number, number]>([30, 30])
     function handleMapEvent(event: LeafletMouseEvent) {
         const {lat, lng} = event.latlng
         setLatLong([lat, lng])
@@ -179,7 +180,7 @@ const CreatePoint = () => {
                     </legend>
                     <div className="field">
                         <label htmlFor="name">Nome da entidade</label>
-                        <input type="text" name="id" id="name" onChange={handleInputEvent} />
+                        <input type="text" name="name" id="name" onChange={handleInputEvent} />
                     </div>
 
                     <div className="field-group">
@@ -199,7 +200,7 @@ const CreatePoint = () => {
                         <span>Selecione o endereço no mapa</span>
                     </legend>
 
-                    <Map center={latLong} zoom={10} onClick={handleMapEvent}>
+                    <Map center={[0, 0]} zoom={10} onClick={handleMapEvent}>
                         <TileLayer
                             attribution='&amp;copy <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
