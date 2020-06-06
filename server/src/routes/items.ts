@@ -1,7 +1,9 @@
-import express from 'express'
 import knex from '../database/connection'
+import Router from 'express-promise-router' 
 
-const routes = express.Router()
+import config from '../config'
+
+const routes = Router()
 
 export interface Item {
     id: number,
@@ -9,8 +11,8 @@ export interface Item {
     title: string
 }
 
-routes.get('', async (request, response) => {
-    knex('items').select<Item[]>('*')
+routes.get('/', async (request, response) => {
+    await knex('items').select<Item[]>('*')
         .then(items => {
             return items.map(item => {
                 return {
@@ -19,7 +21,7 @@ routes.get('', async (request, response) => {
                 }
             })
         })
-        .catch((err) => response.status(500).send({error: err}))
+        .catch((err) => config.throwApiError(500, err))
         .then((items) => response.json({
             data: items
         }))

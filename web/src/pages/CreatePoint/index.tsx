@@ -2,7 +2,7 @@ import React, {useEffect, useState, ChangeEvent, FormEvent} from 'react'
 import {Link, useHistory} from 'react-router-dom'
 import {FiArrowLeft} from 'react-icons/fi'
 import {Map, TileLayer, Marker} from 'react-leaflet'
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 import {LeafletMouseEvent} from 'leaflet'
 
 import api, {baseURL} from '../../services/api'
@@ -10,6 +10,8 @@ import toast from '../../utils/toaster'
 
 import './styles.css'
 import logo from '../../assets/logo.svg'
+
+import DropZone from '../../components/DropZone'
 
 interface Item {
     image: string
@@ -51,6 +53,8 @@ const CreatePoint = () => {
     const handleSelectCity = useOptionHandler(setSelectedCity, '0')
 
     const [latLong, setLatLong] = useState<[number, number]>([0, 0])
+    
+    const [selectedFile, setSelectedFile] = useState<File>()
 
     const [formData, setFormData] = useState({
         name: '',
@@ -70,6 +74,7 @@ const CreatePoint = () => {
         )
         setItems(newState)
     } 
+    
     function handleMapEvent(event: LeafletMouseEvent) {
         const {lat, lng} = event.latlng
         setLatLong([lat, lng])
@@ -92,11 +97,22 @@ const CreatePoint = () => {
         const itemIds = items
             .filter(item => item.is_selected)
             .map(item => item.id)
-        const data = {
+
+        const data = new FormData()
+        Object.entries({
             name, email, whatsapp,
             latitude, longitude,
             uf, city,
             items: itemIds
+        }).forEach((item) => {
+            const [k, v] = item
+            data.append(k, String(v))
+        })
+        if (selectedFile !== undefined) {
+            data.append('image', selectedFile)
+        } else {
+            toast.error("Selecione uma imagem para o ponto de coleta")
+            return
         }
         try {
             const response = await api.post('/api/points', data)
@@ -104,11 +120,12 @@ const CreatePoint = () => {
                 toast.success("Ponto criado")
             } else {
                 toast.error(`Houve um erro na criação do ponto: ${response.data.error}`)
+                console.log(response.data)
             }
             toast.info("Redirecionando para a página inicial...")
             history.push('/')
         } catch (err) {
-            toast.error(`Erro ao submeter dados: ${err}`)
+            toast.error(`Erro ao submeter dados: ${err.response.data.error}`)
         }
     }
 
@@ -174,6 +191,9 @@ const CreatePoint = () => {
 
             <form onSubmit={handleSubmit}>
                 <h1>Cadastro do <br/> ponto de coleta</h1>
+
+                <DropZone onFileChanged={setSelectedFile} />
+
                 <fieldset>
                     <legend>
                         <h2>Dados</h2>

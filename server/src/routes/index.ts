@@ -1,11 +1,12 @@
 import express from 'express'
 import {resolve} from 'path'
-import config from '../config'
+import Router from 'express-promise-router' 
 
+import config from '../config'
 import api_items from './items'
 import api_points from './points'
 
-const router = express.Router()
+const router = Router()
 // data serve route
 router.use('/static/resources', express.static(resolve(config.data_folder, 'resources')))
 
@@ -21,7 +22,7 @@ router.use('/api', apiRouter)
 
 // default route, let it be the last
 router.use((request, response) => {
-    return response.status(404).json({error: 'route not found'})
+    throw config.throwApiError(404, 'route not found')
 })
 
 export default router

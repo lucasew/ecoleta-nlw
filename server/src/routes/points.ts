@@ -1,9 +1,15 @@
 import express, { request, response } from 'express';
+import multer from 'multer'
 import knex from '../database/connection'
+import Router from 'express-promise-router' 
+import {celebrate, Joi} from 'celebrate'
+
 import {Item} from './items'
-import { parse } from 'dotenv/types';
-import { string } from 'getenv';
-const routes = express.Router()
+import {multerConfig, throwApiError} from '../config'
+
+const upload = multer(multerConfig)
+
+const routes = Router()
 
 export interface Point {
     id: number,
@@ -17,7 +23,21 @@ export interface Point {
     longitude: number
 }
 
-routes.post('', async (request, response) => {
+routes.post('/', 
+    upload.single('image'), 
+    celebrate({
+        body: Joi.object().keys({
+            name: Joi.string().required(),
+            email: Joi.string().required().email(),
+            whatsapp: Joi.number().required(),
+            latitude: Joi.number().required(),
+            longitude: Joi.number().required(),
+            city: Joi.string().required(),
+            uf: Joi.string().required().max(2),
+            items: Joi.string().required() // validação interna
+        })
+    }),
+    async (request, response) => {
     const trx = await knex.transaction()
     const {
         name,
@@ -29,9 +49,13 @@ routes.post('', async (request, response) => {
         uf,
         items
     } = request.body
-
+    if (request.file === undefined) {
+        await trx.rollback()
+        throwApiError(400, "Invalid image or not found")
+    }
+    const imageURL = `static${request.file.path.slice(4)}`
     const data = {
-        image: "https://s2.glbimg.com/vmo9jpOdJ51CkO8NMtjPK5RNIHg=/512x320/smart/e.glbimg.com/og/ed/f/original/2018/10/11/como-gastar-menos-no-mercado.jpg",
+        image: imageURL,
         name,
         email,
         whatsapp,
@@ -40,64 +64,60 @@ routes.post('', async (request, response) => {
         city,
         uf
     }
+    const itemIDs = String(items) ? items.split(',').map((n: string) => parseInt(n)) : []
+    if (itemIDs.filter(isNaN).length > 0) {
+        await trx.rollback()
+        throwApiError(400, "invalid numbers passed for item ids")
+    }
+
     let point_id = 0
     try {
         let id: number[] = await trx('points').insert(data)
         point_id = id[0]
     } catch (err) {
-        trx.rollback()
-        return response.status(400).json({
-            error: `bad request: ${err}`
-        })
+        await trx.rollback()
+        throwApiError(400, err)
     }
-    const point_items: any[] = items ? items.map((item_id: number) => {
+    const point_items: {item_id: number, point_id: number}[] = itemIDs
+        .map((item_id: number) => {
         return {
             item_id,
             point_id
         }
-    }) : []
+    })
 
     if (point_items.length === 0) {
-        trx.rollback()
-        return response.status(400).json({
-            error: 'bad request: um ponto de coleta precisa coletar alguma coisa'
-        })
+        await trx.rollback()
+        throwApiError(400, "um ponto de coleta precisa coletar alguma coisa")
     }
     try {
         await trx('point_items').insert(point_items)
     } catch (err) {
-        trx.rollback()
-        return response.status(500).json({
-            error: `internal server error: ${err}`
-        })
+        await trx.rollback()
+        throwApiError(500, err)
     }
-    const expandedItems: any[] = await trx('items').select('*').whereIn('id', items)
-    if (expandedItems.length == items.length) {
-        trx.commit()
+    const expandedItems: any[] = await trx('items').select('*').whereIn('id', itemIDs)
+    if (expandedItems.length == itemIDs.length) {
+        await trx.commit()
         return response.json({
             id: point_id,
             ...data,
             items: expandedItems
         })
     }
-    trx.rollback()
-    return response.status(400).json({
-        error: 'bad request: item_ids specified that not found in database'
-    })
+    await trx.rollback()
+    throwApiError(400, 'item_ids specified that not found in database')
 })
 
 routes.get('/:id', async (request, response) => {
     const {id} = request.params
     if (id === undefined) {
-        return response.status(400).json({
-            error: 'bad request: missing id in url'
-        })
+        // se bem que n faz grandes diferenças, o sv ja cai na rota do 404 se não especifica
+        throwApiError(400, 'missing id in url')
     }
     const numId = parseInt(id)
     if (numId == NaN) {
-        return response.status(400).json({
-            error: 'bad request: id is not a number'
-        })
+        throwApiError(400, 'id is not a number')
     }
     let point = await knex<Point>('points').select('*').where('id', id).first()
     if (point) {
@@ -112,13 +132,11 @@ routes.get('/:id', async (request, response) => {
             }
         })
     } else {
-        return response.status(404).json({
-            error: 'point not found'
-        })
+        throwApiError(404, 'point not found')
     }
 })
 
-routes.get('', async (request, response) => {
+routes.get('/', async (request, response) => {
     const {city, uf, items} = request.query
 
     let normalizedItems: number[] = []
@@ -129,9 +147,7 @@ routes.get('', async (request, response) => {
             values.map(parseInt)
                 .forEach(n => normalizedItems.push(n))
             if (normalizedItems.filter(isNaN).length > 0) {
-                return response.status(400).json({
-                    error: `bad request: invalid number specified for items`
-                })
+                throwApiError(400, "invalid number specified for items")
             }
         }
     }
@@ -151,9 +167,7 @@ routes.get('', async (request, response) => {
         points = await query.distinct()
             .select('points.*')
     } catch (err) {
-        return response.status(500).json({
-            error: `internal server error: ${err}`
-        })
+        throwApiError(500, err)
     }
 
     let processedPoints = Promise.all(points.map(async point => {
